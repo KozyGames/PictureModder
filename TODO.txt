@@ -1,0 +1,31 @@
+FileParsing.h
+    add capacity-concept to Basic_DynamicArray
+
+FileParsing.cpp
+
+load_picture_bmp:
+    RLE8 Compression
+
+    RLE4 Compression
+
+
+Picture
+    extend and rework State-system
+        --When does a Picture become "Fatal"? I am thinking that failing in loading a Picture should not be fatal. 
+
+Format
+    getFormatByFileName
+        --Many Formats give hints in the very first bytes of what type they are. 
+            For BMP picture files, the first two bytes translated into decimal and then ASCII results in "BM". Other BMP structured files or old pictures might not have BM as their signature
+            For PNG picture files, the first eight bytes are the following (decimal) values: 137 80 78 71 13 10 26 10 . 80,78,71 translated into ASCII is "PNG"
+            For WAV audio files, the first four bytes translated into ASCII are "RIFF". Need to look more into this. Mp3 seem to not have a signature and also WAV seems to have many different types.
+
+Format.h
+    -delete the include cstring or the comment. I need to know if size_t is guaranteed in <string>. Looking back at how much time I spent reading about different formats and other unnecassary but interesting stuff, maybe just ask Matthias or do your own stack_overflow question
+
+SystemManager
+    -does checks on whether the system can correctly use this library
+    --looks for char to be 8 bit
+    --unsigned int to be 2 or 4 bytes
+
+FINISH FILEPARSING
