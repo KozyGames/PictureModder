@@ -1,39 +1,38 @@
 
 
 #include "BitmapInterface.h"
+#include "Exception_Handling.h"
 
 using namespace Kozy;
 
 
-ScanLine::ScanLine(unsigned lineWidth){
-	sLine = new Pixel_24[width];
+ScanLine::ScanLine(unsigned lineWidth)noexcept{
+	sLine = new Pixel_24[lineWidth];
 }
 
 ScanLine::ScanLine(const ScanLine& cpy, unsigned width)
 :sLine(new Pixel_24[width]){
-for(unsigned index=0; index!=width;++index){
-        Pixel_24& pix=sLine[index];
-        pix.red=cpy.sLine[index].red;
-        pix.green=cpy.sLine[index].green;
-        pix.blue=cpy.sLine[index].blue;
-    }
+    for(unsigned index=0; index!=width;++index)
+        sLine[index] = cpy.sLine[index];
 }
 
-ScanLine::ScanLine(ScanLine&& mv)
+ScanLine::ScanLine(ScanLine&& mv)noexcept
 :sLine(mv.sLine){
     mv.sLine=nullptr;
 }
 
-ScanLine::ScanLine()
+ScanLine::ScanLine()noexcept
 :sLine(nullptr){
     
 }
 
-Pixel_24* ScanLine::operator[](unsigned index){
-    return sLine+index;
+Pixel_24& ScanLine::operator[](unsigned long long index){
+    return sLine[index];
 }
-
-ScanLine& ScanLine::operator=(ScanLine&& mv){
+const Pixel_24& ScanLine::operator[](unsigned long long index)const{
+    return sLine[index];
+}
+ScanLine& ScanLine::operator=(ScanLine&& mv)noexcept{
     delete[] sLine;
     sLine=mv.sLine;
 
@@ -44,17 +43,14 @@ ScanLine& ScanLine::operator=(ScanLine&& mv){
 ScanLine& ScanLine::copy(const ScanLine& cpy, unsigned width){
     delete[] sLine;
     sLine=new Pixel_24[width];
-    for(unsigned index=0; index!=width;++index){
-        Pixel_24& pix=sLine[index];
-        pix.red=cpy.sLine[index].red;
-        pix.green=cpy.sLine[index].green;
-        pix.blue=cpy.sLine[index].blue;
-    }
+    for (unsigned index = 0; index != width; ++index)
+        sLine[index] = cpy.sLine[index];
+
     return *this;
 }
 
 
-bool ScanLine::compare(const ScanLine& rhs, unsigned width)const{
+bool ScanLine::compare(const ScanLine& rhs, unsigned width)const noexcept{
     for(unsigned pos{0};pos!=width;++pos){
         if(sLine[pos]!=rhs.sLine[pos])
             return false;
@@ -72,9 +68,9 @@ BitmapInterface& BitmapInterface::operator=(const BitmapInterface& cpy){
     pixLines = new ScanLine[res.height];
     for(unsigned index{0};index != res.height;++index)
         pixLines[index].copy(cpy.pixLines[index],res.width);
-    
+    return *this;
 }
-BitmapInterface& BitmapInterface::operator=(BitmapInterface&& mv){
+BitmapInterface& BitmapInterface::operator=(BitmapInterface&& mv)noexcept{
     orientation=mv.orientation;
 
     res = mv.res;
@@ -83,9 +79,43 @@ BitmapInterface& BitmapInterface::operator=(BitmapInterface&& mv){
     delete[] pixLines;
     pixLines = mv.pixLines;
     mv.pixLines = nullptr;
+
+    return *this;
 }
 
+ScanLine& BitmapInterface::operator[](unsigned long index){
+    if(index>=res.height){
+        throw Out_Of_Range_obj(
+            "Out of Bounds Error. \nYou tried to access a Scanline that does not exist!",
+            "Check the height of your picture before accessing a Scanline."
+        );
 
+        if(res.height==0)
+            throw Runtime_Error_obj(
+                "Bad Access! The picture is Empty!",
+                ""
+            );
+        return pixLines[0];
+    }
+    return pixLines[index];
+}
+const ScanLine& BitmapInterface::operator[](unsigned long index)const{
+    if(index>=res.height){
+        throw Out_Of_Range_obj(
+            "Out of Bounds Error. \nYou tried to access a Scanline that does not exist!",
+            "Check the height of your picture before accessing a Scanline."
+        );
+
+        if(res.height==0)
+            throw Runtime_Error_obj(
+                "Bad Access! The picture is Empty!",
+                ""
+            );
+        return pixLines[0];
+    }
+    return pixLines[index];
+
+}
 
 bool BitmapInterface::operator==(const BitmapInterface& rhs)const{
     if(res.width==rhs.res.width) {
@@ -131,6 +161,6 @@ bool BitmapInterface::exactlySame(const BitmapInterface& rhs)const{
 }
 
 
-void BitmapInterface::setPictureOrientation(const bool& b) {
+void BitmapInterface::setPictureOrientation(const bool& b)noexcept {
     orientation=!b;
 }

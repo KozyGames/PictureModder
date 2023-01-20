@@ -13,8 +13,8 @@ namespace Kozy{
 struct BitmapInterface;
 
 namespace FileParsing{
-BitmapInterface* load_Picture_BMP(BitmapInterface*, const char *const fileName);
-BitmapInterface* save_Picture_BMP(BitmapInterface*, const char *const fileName);
+BitmapInterface* load_Picture_BMP(BitmapInterface*, const char* fileName);
+BitmapInterface* save_Picture_BMP(BitmapInterface*, const char* fileName);
 }
 
 struct Resolution{
@@ -24,6 +24,46 @@ struct Resolution{
 
 
 struct Pixel_24{
+	friend Kozy::BitmapInterface* Kozy::FileParsing::load_Picture_BMP(Kozy::BitmapInterface* pic, const char* fileName); // this function does the heavy in-depth construction of a new Bitmap/Picture
+	friend Kozy::BitmapInterface* Kozy::FileParsing::save_Picture_BMP(Kozy::BitmapInterface* pic, const char* fileName); // this function does the heavy in-depth construction of a new Bitmap/Picture
+
+	public:
+	unsigned getRed()const
+		{return red;}
+	unsigned getGreen()const
+		{return green;}
+	unsigned getBlue()const
+		{return blue;}
+	Pixel_24& setRed(unsigned value){
+		red=value;
+		return *this;}
+	Pixel_24& setGreen(unsigned value){
+		green=value;
+		return *this;}
+	Pixel_24& setBlue(unsigned value){
+		blue=value;
+		return *this;}
+	Pixel_24& operator=(const Pixel_24& cpy)noexcept {
+		red = cpy.red;
+		green = cpy.green;
+		blue = cpy.blue;
+
+		return *this;
+	}
+	bool operator==(const Pixel_24& rhs)const noexcept 
+		{return red == rhs.red && green == rhs.green && blue == rhs.blue;}
+	bool operator!=(const Pixel_24& rhs)const noexcept 
+		{return *this==rhs;}
+
+	Pixel_24& setRGB(unsigned argRed, unsigned argGreen, unsigned argBlue){
+
+		red=argRed;
+		green = argGreen;
+		blue = argBlue;
+		return *this;}
+
+
+	private:
 	unsigned red:8;
 	unsigned green:8;
 	unsigned blue:8;
@@ -31,10 +71,13 @@ struct Pixel_24{
 
 
 struct ScanLine{
+	friend Kozy::BitmapInterface* Kozy::FileParsing::load_Picture_BMP(Kozy::BitmapInterface* pic, const char* fileName); // this function does the heavy in-depth construction of a new Bitmap/Picture
+	friend Kozy::BitmapInterface* Kozy::FileParsing::save_Picture_BMP(Kozy::BitmapInterface* pic, const char* fileName); // this function does the heavy in-depth construction of a new Bitmap/Picture
+
     public:
 	ScanLine(unsigned lineWidth)noexcept;
 	ScanLine(const ScanLine&, unsigned width);
-	ScanLine(ScanLine&&);
+	ScanLine(ScanLine&&)noexcept;
 	ScanLine(ScanLine&)=delete; // ScanLine does not save its width, so it is not possible to copy the array correctly
 	ScanLine()noexcept;
 		
@@ -45,7 +88,7 @@ struct ScanLine{
 	}
 
 	ScanLine& operator=(const ScanLine&)=delete;
-	ScanLine& operator=(ScanLine&&);
+	ScanLine& operator=(ScanLine&&)noexcept;
 	ScanLine& operator=(unsigned)=delete;
 
 	ScanLine& copy(const ScanLine&, unsigned width);
@@ -56,7 +99,8 @@ struct ScanLine{
 	bool compare(const ScanLine&, unsigned width)const noexcept;
 
 	// user is responsible for correct access
-	Pixel_24* operator[](unsigned);
+	const Pixel_24& operator[](unsigned long long)const;
+	Pixel_24& operator[](unsigned long long);
 	
 		
 	private:
@@ -72,8 +116,8 @@ enum class Bit_Channel:unsigned{
 
 
 struct BitmapInterface{ 
-	friend Kozy::BitmapInterface* Kozy::FileParsing::load_Picture_BMP(Kozy::BitmapInterface *pic, const char *const fileName); // this function does the heavy in-depth construction of a new Bitmap/Picture
-	friend Kozy::BitmapInterface* Kozy::FileParsing::save_Picture_BMP(Kozy::BitmapInterface *pic, const char *const fileName); // this function does the heavy in-depth construction of a new Bitmap/Picture
+	friend Kozy::BitmapInterface* Kozy::FileParsing::load_Picture_BMP(Kozy::BitmapInterface *pic, const char* fileName); // this function does the heavy in-depth construction of a new Bitmap/Picture
+	friend Kozy::BitmapInterface* Kozy::FileParsing::save_Picture_BMP(Kozy::BitmapInterface *pic, const char* fileName); // this function does the heavy in-depth construction of a new Bitmap/Picture
 
     public:
     virtual ~BitmapInterface(){
@@ -81,8 +125,11 @@ struct BitmapInterface{
 				delete[] pixLines;
 		}
 	
-	virtual BitmapInterface& operator=(const BitmapInterface&);
-	virtual BitmapInterface& operator=(BitmapInterface&&);
+	BitmapInterface& operator=(const BitmapInterface&);
+	BitmapInterface& operator=(BitmapInterface&&)noexcept;
+
+	ScanLine& operator[](unsigned long index);
+	const ScanLine& operator[](unsigned long index)const;
 
 	/*
 	compares each scanline
@@ -128,7 +175,7 @@ struct BitmapInterface{
     protected:
     BitmapInterface();
 	Resolution res;
-	Bit_Channel bitChannel{Bit_24};	// right now, we only allow exactly 24 bits per pixel
+	Bit_Channel bitChannel{Bit_Channel::Bit_24};	// right now, we only allow exactly 24 bits per pixel
 
 	/* 
 	res.height == length of ScanLine Array

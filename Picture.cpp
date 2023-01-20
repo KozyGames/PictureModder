@@ -9,7 +9,7 @@
 using namespace Kozy;
 
 
-Picture::Picture(): BitmapInterface(), format(BLANKFORMAT) {
+Picture::Picture()noexcept: BitmapInterface(), format(BLANKFORMAT) {
 	setState(State::Good); 
 }
 Picture::Picture(const char* fileName): BitmapInterface(), format(getFormatByFileName(fileName)) {
@@ -41,7 +41,11 @@ Picture::Picture(const Picture& cpy){
     }
     
 }
-Picture::Picture(Picture&& mv){
+/*
+As far as I can tell, a noexcept function is allowed to throw. But any not caught throws results in std::terminate to be envoked
+Unfortunately, msvc gives a warning and I am very much against disabling warnings. In future c++ revisions or msvc updates this might change. 
+*/
+Picture::Picture(Picture&& mv)noexcept {
      if(!doesStateContain(State::Fatal_Error)&&!mv.doesStateContainAny(State::Failed_Loading_AND_Fatal_Error)){
         BitmapInterface::operator=(std::move(mv));
         extraCheckForIsValid=mv.extraCheckForIsValid;
@@ -49,21 +53,10 @@ Picture::Picture(Picture&& mv){
         format=std::move(mv.format);
         mv.enableState(State::Fatal_Error);
     }
-
     else{
-       if(!isValid()&&!mv.isValid())
-        throw Runtime_Error_obj(
-            "Both pictures experienced a fatal error and are unsafe to work with!",
-            "Check both pictures for any big mistakes. This state indicates fatal behavior!"
-        );
-       else
-            throw Runtime_Error_obj(
-            (!isValid()) ? "The to-be-copied-to-picture is in a fatal error state!":"The to-be-copied-from-picture is in a fatal state!",
-            "Check the picture for any big mistakes. This state indicates fatal behavior!"
-        );
+         ; //do nothing
        
     }
-    
 }
 
 
@@ -80,20 +73,20 @@ Picture& Picture::operator=(const Picture& cpy){
     }
 
     else{
-       if(!isValid()&&!cpy.isValid())
-        throw Runtime_Error_obj(
-            "Both pictures experienced a fatal error and are unsafe to work with!",
-            "Check both pictures for any big mistakes. This state indicates fatal behavior!"
-        );
+         if (!isValid() && !cpy.isValid()) 
+             throw Runtime_Error_obj(
+                 "Both pictures experienced a fatal error and are unsafe to work with!",
+                 "Check both pictures for any big mistakes. This state indicates fatal behavior!"
+             );
        else
             throw Runtime_Error_obj(
             (!isValid()) ? "The to-be-copied-to-picture is in a fatal error state!":"The to-be-copied-from-picture is in a fatal state!",
             "Check the picture for any big mistakes. This state indicates fatal behavior!"
-        );
-       
+        );   
     }
+     return *this;
 }
-Picture& Picture::operator=(Picture&& mv){
+Picture& Picture::operator=(Picture&& mv)noexcept{
      if(!doesStateContain(State::Fatal_Error)&&!mv.doesStateContainAny(State::Failed_Loading_AND_Fatal_Error)){
         BitmapInterface::operator=(std::move(mv));
         extraCheckForIsValid=mv.extraCheckForIsValid;
@@ -103,23 +96,18 @@ Picture& Picture::operator=(Picture&& mv){
     }
 
     else{
-       if(!isValid()&&!mv.isValid())
-        throw Runtime_Error_obj(
-            "Both pictures experienced a fatal error and are unsafe to work with!",
-            "Check both pictures for any big mistakes. This state indicates fatal behavior!"
-        );
-       else
-            throw Runtime_Error_obj(
-            (!isValid()) ? "The to-be-copied-to-picture is in a fatal error state!":"The to-be-copied-from-picture is in a fatal state!",
-            "Check the picture for any big mistakes. This state indicates fatal behavior!"
-        );
+         ; //do nothing
        
     }
-    
+     return *this;
 }
 
+const Picture& Picture::save(const char* fileName, const Format& f)const
+    {return *FileParsing::save_Picture(this,fileName,f);}
+const Picture& Picture::save(const char* fileName)const
+    {return *FileParsing::save_Picture(this,fileName);}
 
-bool Picture::isValid()const {
+bool Picture::isValid()const noexcept {
     if(extraCheckForIsValid && !extraCheckForIsValid()) 
         return false;
 
@@ -129,6 +117,6 @@ bool Picture::isValid()const {
 ;}
 
 
-const Format& Picture::getFormat() const {
+const Format& Picture::getFormat() const noexcept {
     return format;
 }

@@ -75,8 +75,9 @@ class SystemManager{
     SystemManager();
 
     static bool systemHealth;
+    friend const SystemManager initialize();
 };
-constexpr SystemManager systemM;
+extern const SystemManager systemM;
 
 
 }

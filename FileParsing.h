@@ -16,7 +16,7 @@ class PictureProject;
 struct BitmapInterface;
 struct Format;
 
-namespace FileParsing{
+namespace FileParsing{ //advanced features that might too complicated or harmful are hidden inside extra namespaces. User is only supposed to use the namespace "Kozy"
 
 
 
@@ -199,7 +199,7 @@ class Basic_DynamicArray{
 		{}
 	Basic_DynamicArray(const Basic_DynamicArray& cpy)noexcept:length(cpy.length){
 		data=new byte_8[length];
-		for(unsigned pos(0);pos!=length;++pos)
+		for(unsigned long pos(0);pos!=length;++pos)
 			data[pos]=cpy.data[pos];
 	}
 	Basic_DynamicArray(Basic_DynamicArray&& mv)noexcept:data(mv.data),length(mv.length){
@@ -224,21 +224,22 @@ class Basic_DynamicArray{
 	Basic_DynamicArray(const byte_8& value)noexcept:Basic_DynamicArray(&value) //delegating constructor
 		{}
 
-	virtual ~Basic_DynamicArray() //made virtual, in case I inherit from this class
-		{delete[] data;}
+	virtual ~Basic_DynamicArray(){ //made virtual for possible derived classes
+		length = 0;
+		delete[] data;
+	}
 
 	Basic_DynamicArray& append(const byte_8& val)noexcept{ 
 		expandArray(1);
 		data[length-1]=val;
 
-		
 		return *this;
 	}
-	Basic_DynamicArray& copyArray(byte_8* arr,size_t len){
-		size_t oldLength=length;
+	Basic_DynamicArray& copyArray(const byte_8* arr,size_t len){
+		const size_t oldLength=length;
 		expandArray(len);
 
-		for(unsigned pos(0);pos!=len;++pos)
+		for(unsigned long pos(0);pos!=len;++pos)
 			data[pos+oldLength]=arr[pos];
 		return *this;
 	}
@@ -249,19 +250,21 @@ class Basic_DynamicArray{
 		{return append(val);}
 	Basic_DynamicArray& operator+=(const Basic_DynamicArray& cpy){
 		const size_t oldLength=length;
-		expandArray(length+cpy.length);
+		expandArray(cpy.length);
 
-		for(unsigned pos(0);pos!=length;++pos)
+		for(unsigned long pos(0);pos!=cpy.length;++pos)
 			data[oldLength+pos]=cpy.data[pos];
 
 		return *this;
 	}	
-	Basic_DynamicArray& operator+=(Basic_DynamicArray&& mv){
+	/*
+	
+		Basic_DynamicArray& operator+=(Basic_DynamicArray&& mv){
 		//TEMP. This needs to be optimized, because it does not use the move-semantic efficiently yet.
 		Basic_DynamicArray mvO(mv);
 		(*this)+=mvO;
 		return (*this);
-	}
+	}*/
 	Basic_DynamicArray operator+(const Basic_DynamicArray& val)
 		{return Basic_DynamicArray(*this)+=val;}	
 	Basic_DynamicArray operator+(const byte_8& val)
@@ -287,6 +290,80 @@ class Basic_DynamicArray{
 	bool isEmpty()const noexcept
 		{return data;} //same as data != nullptr
 
+	
+
+	/*
+	the Iterator class and the member-functions below are needed, so that one can use STL functions and objects for this container.
+	For example the for-range loop and some functions from <algorithm> would otherwise not work for this container.
+	*/
+	class Iterator{
+		friend class Basic_DynamicArray;
+		public:
+		Iterator(byte_8* dataPtr):data(dataPtr)
+			{}
+		Iterator(const Iterator& iter):data(iter.data)
+			{}
+
+
+		const byte_8& operator*()const
+			{return *data;}
+		const byte_8& operator->()const
+			{return *data;}
+		const Iterator operator++()const
+			{return Iterator(data+1);}
+		const Iterator operator++(int)const{
+			Iterator old=*this;
+			return Iterator(data+1);
+		}
+		const Iterator operator--()const
+			{return Iterator(data-1);}
+		const Iterator operator--(int)const{
+			Iterator old=*this;
+			return Iterator(data-1);
+		}
+
+		byte_8& operator*()
+			{return *data;}
+		byte_8& operator->()
+			{return *data;}
+		Iterator& operator++(){
+			++data;
+			return *this;}
+		Iterator operator++(int){
+			Iterator old=*this;
+			return Iterator(data+1);
+		}
+		Iterator operator--()
+			{return Iterator(data-1);}
+		Iterator operator--(int){
+			Iterator old=*this;
+			return Iterator(data-1);
+		}
+
+		Iterator& operator=(const Iterator& cpy){
+			data=cpy.data;
+			return *this;
+		}
+		bool operator==(const Iterator& cpy)const 
+			{return data==cpy.data;}	
+		bool operator!=(const Iterator& cpy)const 
+			{return !(*this==cpy);}	
+
+		private:
+		byte_8* data;
+
+	};
+
+	Iterator begin()
+		{return Iterator(data);}
+	const Iterator cbegin()const 
+		{return Iterator(data);}
+	Iterator end()
+		{return Iterator(data+length);}
+	const Iterator cend()const 
+		{return Iterator(data+length);}
+
+
 	private:
 	byte_8* data;
 	size_t length;
@@ -294,8 +371,8 @@ class Basic_DynamicArray{
 
 	void expandArray(size_t len)noexcept{
 		byte_8* newData=new byte_8[length+len];
-		for(unsigned index(0);index!=length;++index) //I could have used something like copy_n from <algorithm>, but I try to use as little from the STL as possible for this project
-			newData[index]==data[index];
+		for(size_t index(0);index!=length;++index) //I could have used something like copy_n from <algorithm>, but I try to use as little from the STL as possible for this project
+			newData[index]=data[index];
 		length+=len;
 	}
 
@@ -313,9 +390,70 @@ assumes:
  1 byte is 8 bit
 */
 template<typename T>	//We could have named the unknown type something else, but if there is no good name, it is traditionally named "T"
-Basic_DynamicArray castValueToWORD_l_e(const T& val){
+byte_8* castValueToWORD_l_e(const T& val){
 	constexpr size_t maxOf16=0b1111'1111'1111'1111;
-	const unsigned int Ival;
+	unsigned int Ival;
+	if(val>maxOf16){
+		throw Invalid_Argument_obj(
+			"You entered a value that is bigger than 2^16 and the value will be clipped!",
+			"You should either \nuse a smaller value, \ncast it to DWORD or \nsplit it into several WORDs"
+		);
+	Ival=maxOf16; 
+	}else
+		Ival=static_cast<unsigned int>(val); //we cast explicitly
+	
+	byte_8 casted[2]{};
+	constexpr unsigned padding=(sizeof(unsigned)-2)*8; //we need to do this, because unsigned int is on most machines either 2 or 4 bytes long. It is only defined to be at least 2 bytes long
+	unsigned temp;
+	temp=Ival<<(8+padding);	//+ has a higher precedence than <<,>>. 
+	casted[0]=temp>>(8+padding); //We need to shift in two steps. Bitwise shift is a mathematical operation. If we shift in one direction and back in the same instruction, we do not clipp the undesired byte.
+	casted[1]=Ival>>(8+padding);
+
+	return casted;
+}
+/*
+cast to DWORD
+*/
+template<typename T>
+//Basic_DynamicArray castValueToDWORD_l_e(const T& val) {
+byte_8* castValueToDWORD_l_e(const T& val){
+	constexpr size_t maxOf32=0b1111'1111'1111'1111'1111'1111'1111'1111;
+	unsigned long Ival;
+	if(val>maxOf32){
+		throw Invalid_Argument_obj(
+			"You entered a value that is bigger than 2^16 and the value will be clipped!",
+			"You should either \nuse a smaller value, \ncast it to DWORD or \nsplit it into several WORDs"
+		);
+	Ival=maxOf32; 
+	}else
+	Ival=static_cast<unsigned long>(val); //we cast implicitly. It is likely that there is no explicit cast to unsigned long
+	
+	byte_8 casted[4]{};
+
+	//uses clipping on the right and left side to get the exact bytes
+	constexpr unsigned padding=(sizeof(unsigned long)-4)*8; //we need to do this, because unsigned long is only defined to be at least 4 bytes long
+	unsigned long temp;
+	temp=Ival<<(24+padding);	
+	casted[0]=temp>>(24+padding);
+	temp=Ival<<(16+padding);	
+	casted[1]=temp>>(24+padding);
+	temp=Ival<<(8+padding);	
+	casted[2]=temp>>(24+padding);
+	casted[3]=Ival>>(24+padding);
+
+	return casted;
+}
+
+/*
+For more information look up the l_e variant
+
+b_e == big Endian order
+*/
+template<typename T>
+//Basic_DynamicArray castValueToWORD_b_e(const T& val){
+Basic_DynamicArray castValueToWORD_b_e(const T& val) {
+	constexpr size_t maxOf16=0b1111'1111'1111'1111;
+	unsigned int Ival;
 	if(val>maxOf16){
 		throw Invalid_Argument_obj(
 			"You entered a value that is bigger than 2^16 and the value will be clipped!",
@@ -325,20 +463,23 @@ Basic_DynamicArray castValueToWORD_l_e(const T& val){
 	}else
 	Ival=static_cast<unsigned int>(val); //we cast explicitly
 	
-	byte_8 casted[2];
-	constexpr unsigned padding=(2-sizeof(unsigned)*8); //we need to do this, because unsigned int is on most machines either 2 or 4 bytes long. It is only defined to be at least 2 bytes long
-	casted[0]=(Ival<<8+padding)>>(8+padding);	//+ has a higher precedence than <<,>>. We use parentheses to denote meaning.
-	casted[1]=Ival>>8+padding;
+	byte_8 casted[2]{};
+	constexpr unsigned padding=(sizeof(unsigned)-2)*8; //we need to do this, because unsigned int is on most machines either 2 or 4 bytes long. It is only defined to be at least 2 bytes long
+	unsigned temp;
+	temp = Ival << (8 + padding);	//+ has a higher precedence than <<,>>.
+	casted[1] = temp >> (8 + padding);
+	casted[0]=Ival>>(8+padding);
 
 	return Basic_DynamicArray(casted,2);
 }
+
 /*
 cast to DWORD
 */
 template<typename T>
-Basic_DynamicArray castValueToDWORD_l_e(const T& val){
+Basic_DynamicArray castValueToDWORD_b_e(const T& val){
 	constexpr size_t maxOf32=0b1111'1111'1111'1111'1111'1111'1111'1111;
-	const unsigned long Ival;
+	unsigned long Ival;
 	if(val>maxOf32){
 		throw Invalid_Argument_obj(
 			"You entered a value that is bigger than 2^16 and the value will be clipped!",
@@ -348,42 +489,20 @@ Basic_DynamicArray castValueToDWORD_l_e(const T& val){
 	}else
 	Ival=val; //we cast implicitly. It is likely that there is no explicit cast to unsigned long
 	
-	byte_8 casted[4];
+	byte_8 casted[4]{};
 
 	//uses clipping on the right and left side to get the exact bytes
-	constexpr unsigned padding=(4-sizeof(unsigned long)*8); //we need to do this, because unsigned long is only defined to be at least 4 bytes long
-	casted[0]=(Ival<<24+padding)>>(24+padding);
-	casted[1]=(Ival<<16+padding)>>(32+padding);
-	casted[2]=(Ival<<8+padding)>>(40+padding);
-	casted[3]=(Ival<<padding)>>(48+padding);
+	constexpr unsigned padding=(sizeof(unsigned long)-4)*8; //we need to do this, because unsigned long is only defined to be at least 4 bytes long
+	unsigned long temp;
+	temp = Ival << (24 + padding);
+	casted[3] = temp >> (24 + padding);
+	temp = Ival << (16 + padding);
+	casted[2] = temp >> (24 + padding);
+	temp = Ival << (8 + padding);
+	casted[1] = temp >> (24 + padding);
+	casted[0] = Ival >> (24 + padding);
 
-	return Basic_DynamicArray(casted,2);
-}
-
-/*
-For more information look up the l_e variant
-
-b_e == big Endian order
-*/
-template<typename T>
-Basic_DynamicArray castValueToWORD_b_e(const T& val){
-	constexpr size_t maxOf16=0b1111'1111'1111'1111;
-	const unsigned int Ival;
-	if(val>maxOf16){
-		throw Invalid_Argument_obj(
-			"You entered a value that is bigger than 2^16 and the value will be clipped!",
-			"You should either \nuse a smaller value, \ncast it to DWORD or \nsplit it into several WORDs"
-		);
-	Ival=maxOf16; 
-	}else
-	Ival=static_cast<unsigned int>(val); //we cast explicitly
-	
-	byte_8 casted[2];
-	constexpr unsigned padding=(2-sizeof(unsigned)*8); //we need to do this, because unsigned int is on most machines either 2 or 4 bytes long. It is only defined to be at least 2 bytes long
-	casted[0]=Ival>>8+padding;
-	casted[1]=Ival<<8+padding;
-
-	return Basic_DynamicArray(casted,2);
+	return Basic_DynamicArray(casted,4);
 }
 
 

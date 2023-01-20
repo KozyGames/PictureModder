@@ -23,8 +23,8 @@ struct Error_Interface {
 	static constexpr const char* const msg_MarkerLine{ "\n///\n\n" }; 
 	/*
 	Modern C++ tries to decrease the amount of Macros that are used. 
-	This is the modern approach for a value, that is known at compile time and does not change. 
-	It has several advantages over a Macro and over other styles.*/
+	This is the modern approach for a constant value, that is known at compile time and does not change. 
+	It has several advantages over a Macro and other styles.*/
 	
 	Error_Interface();
 

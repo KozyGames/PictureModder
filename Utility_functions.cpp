@@ -6,7 +6,12 @@
 using namespace Kozy;
 using namespace Kozy::Utility;
 
-bool Kozy::Utility::fileExists(const char* fileName) {
+const SystemManager Kozy::initialize() {
+	return SystemManager{};
+}
+const SystemManager systemM = initialize();
+
+bool Kozy::Utility::fileExists(const char* fileName)noexcept {
 	std::ifstream ifStr(fileName);
 	if(ifStr.is_open()){
 		finishStream(ifStr);
@@ -30,4 +35,3 @@ bool Kozy::Utility::finishStream(std::ofstream& fs){
 	fs.setstate(std::ios_base::goodbit);
 	return wasState;
 }
-

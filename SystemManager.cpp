@@ -19,6 +19,6 @@ bool SystemManager::systemHealth{false};
 SystemManager::SystemManager(){
 
 }
-constexpr void SystemManager::printSystemInfo()const{
+constexpr void SystemManager::printSystemInfo()const noexcept{
 
 }

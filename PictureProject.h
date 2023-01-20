@@ -2,9 +2,9 @@
 #define PICTUREPROJECT_H
 
 /*
-collects Pictures and hints on how to use them. Like transparancy and transformations.
+collects Pictures and hints on how to use them. Like transparancy, transformations and filter effects.
 
-Can create a new picture. This is done in a new thread each time; locks a picture while doing so.
+Can produce a new picture. This is done in a new thread each time; locks a picture while doing so.
 */
 
 /*
@@ -12,6 +12,8 @@ this is a stud
 */
 #include "Exception_Handling.h"
 namespace Kozy{
+
+
 class PictureProject{
     public:
     //TEMP

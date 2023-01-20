@@ -19,19 +19,17 @@ struct Format;
 */
 class Picture : public BitmapInterface{
 	public:
-
-
 	Picture()noexcept;
 	Picture(const char* fileName);
 	Picture(const Picture&);
-	Picture(Picture&&);
+	Picture(Picture&&)noexcept;
 	Picture(const Picture* const ptr)	//this is simply added, so that the user does not need to dereference their pointer
 		:Picture(*ptr){}
 
 	virtual ~Picture();
 
 	Picture& operator=(const Picture&);
-	Picture& operator=(Picture&&);
+	Picture& operator=(Picture&&)noexcept;
 	Picture& operator=(const char*)=delete; //deleted for preference. I do not want the user to do something like this: pic = "String"; .
 
 	//bool operator== does not exist yet. This class uses its parents equality operator
@@ -100,6 +98,10 @@ class Picture : public BitmapInterface{
 	bool doesStateContainAny(State st) const noexcept
 		{return doesStateContainAny(static_cast<unsigned>(st));}
 
+	const Picture& save(const char* fileName, const Format& )const;
+	const Picture& save(const char* fileName)const;
+
+	
 	private:
 	
 	/*

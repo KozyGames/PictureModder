@@ -189,11 +189,11 @@ BitmapInterface* Kozy::FileParsing::load_Picture_BMP(BitmapInterface* basePic, c
 		
 		
 
-		const DWORD fileSize = getByte_32_Val_l_E(headerStr+2);	//FileSize 4 Bytes
-		const WORD reserved_1 = getByte_16_Val_l_E(headerStr+6);
-		const WORD reserved_2 = getByte_16_Val_l_E(headerStr+8);
+		const DWORD fileSize = static_cast<DWORD>(getByte_32_Val_l_E(headerStr+2));	//FileSize 4 Bytes
+		const WORD reserved_1 = static_cast<WORD>(getByte_16_Val_l_E(headerStr+6));
+		const WORD reserved_2 = static_cast<WORD>(getByte_16_Val_l_E(headerStr+8));
 		//reserved 2+2 Bytes is unused
-        const DWORD dataOffset = getByte_32_Val_l_E(headerStr+10); //DataOffset 4 Bytes
+        const DWORD dataOffset = static_cast<DWORD>(getByte_32_Val_l_E(headerStr+10)); //DataOffset 4 Bytes
 			
 
 		byte_8 headerInfoSizeByte[4];
@@ -216,15 +216,17 @@ BitmapInterface* Kozy::FileParsing::load_Picture_BMP(BitmapInterface* basePic, c
 			So if we were to remove the first bit of that we would have only 2^2 == 4 variations : X00, X01, X10, X11
 			It is more likely that someone needs the first bit to have a specific meaning, like mirroring the picture, than that they need 2^32(== 4.294.967.296) instead of "just" 2^31(==2.147.483.648) pixels in width
 			*/  
-		const DWORD width = getByte_32_Val_l_E(headerInfo)<<1;	// discarding the first bit. Signed types use the first bit of a byte to indicate whether it is a positive or negative number
-		const DWORD height = getByte_32_Val_l_E(headerInfo+4)<<1;
+		DWORD temp = getByte_32_Val_l_E(headerInfo) << 1;
+		const DWORD width = temp>>1;	// discarding the first bit. Signed types use the first bit of a byte to indicate whether it is a positive or negative number
+		temp = getByte_32_Val_l_E(headerInfo + 4) << 1;
+		const DWORD height = temp>>1;
 
 		const bool orientation = height>>31; // bitwise shift by 31, so that only the last bit of the 32 bit value is left.
 		
-		const WORD planes = getByte_16_Val_l_E(headerInfo+8); //should be 1, but we do not check it, because it would not change our usage. Technically, we would have to check it and throw an exception if it is not 1
+		const WORD planes = static_cast<WORD>(getByte_16_Val_l_E(headerInfo+8)); //should be 1, but we do not check it, because it would not change our usage. Technically, we would have to check it and throw an exception if it is not 1
 		//planes 2 Byte is unused. 
     	
-		const WORD bitCount=getByte_16_Val_l_E(headerInfo+10);
+		const WORD bitCount= static_cast<WORD>(getByte_16_Val_l_E(headerInfo+10));
 
 		const DWORD compressionType = getByte_32_Val_l_E(headerInfo+12);
 		const DWORD ImageSize = getByte_32_Val_l_E(headerInfo+16);
@@ -240,7 +242,7 @@ BitmapInterface* Kozy::FileParsing::load_Picture_BMP(BitmapInterface* basePic, c
 		delete[] headerInfo;
 		finishStream(ifStr);
 
-
+		
 		if (bitCount !=1 && bitCount !=4 && bitCount !=8 &&bitCount !=24 || compressionType >=3){ //compressionType 3 is only allowed for 16 and 32 Bits
 		    throw Exception_obj(
 						(string(fileName) + " Only 1,4,8 and 24 Bit-Channels are allowed.").c_str(),
@@ -256,58 +258,68 @@ BitmapInterface* Kozy::FileParsing::load_Picture_BMP(BitmapInterface* basePic, c
 			return nullptr;	}
 
 
+		//modifying basePic
+
+		basePic->res.width = static_cast<unsigned long>(width);
+		basePic->res.height = static_cast<unsigned long>(height);
+		basePic->setPictureOrientation(orientation);
 
 		ifStr.open(fileName); //we read the file again and use the offset provided in the header. This is safer, because that is exactly what DataOffset is designed for.  
 		byte_8* completeFile = new byte_8[fileSize];
 	    ifStr.read(static_cast<char*>(static_cast<void*>(completeFile)),fileSize); 
 
 
-		//modifying basePic
+		
 		/*
 		right now, it assumes that each pixel in the bitmap data is saved in 24 Bits. Meaning that every 24 Bits a new pixel is defined
 
 		*/
 		switch(compressionType){
 			case 0:
+			{								//we need to make a statement block, otherwise msvc compiler complains about the declaratios made in the case scope.
+				delete[] basePic->pixLines;
+				basePic->pixLines = new ScanLine[height];
+				for (unsigned long pos(0); pos != height; ++pos)
+					(*basePic)[pos].sLine = new Pixel_24[width];
 
-			delete[] basePic->pixLines;
-			basePic->pixLines=new ScanLine[height];
+				/*
+				one pixel consists of 3 bytes, each representing one color value. RGB == RED, GREEN, BLUE
+				bytes inside of a pixel are ordered in "little Endian".
+				Meaning, the data in the bitmap looks like this: Pixel_1: BLUE_BYTE, GREEN_BYTE, RED_BYTE, Pixel_2: BLUE_BYTE, GREEN_BYTE, RED_BYTE,....
+				*/
 
-            
-			/*
-			one pixel consists of 3 bytes, each representing one color value. RGB == RED, GREEN, BLUE
-			bytes inside of a pixel are ordered in "little Endian".
-			Meaning, the data in the bitmap looks like this: Pixel_1: BLUE_BYTE, GREEN_BYTE, RED_BYTE, Pixel_2: BLUE_BYTE, GREEN_BYTE, RED_BYTE,....
-			*/
-			
-			byte_8* bitmapData = completeFile+dataOffset; //pixel data array 
-			const WORD scanlinePadding = 4 - (width*3)%4; // padding
-			const DWORD scanlineWidthInBytes = width*3 + scanlinePadding; //bytes per scanline + padding
+				byte_8* bitmapData = completeFile + dataOffset; //pixel data array 
+				const WORD scanlinePadding = ((4- (width * 3) % 4)==4)? 
+					0: 
+					(4 - (width * 3) % 4); // padding
+				const DWORD scanlineWidthInBytes = (width + scanlinePadding) * 3; //bytes per scanline + padding, if there is any
 
-			/*
-			we loop through the bitmap 
-			we copy each pixel of each scanline and skip any padding
 
-			we make a reference to increase readability
-			otherwise the statement for the blue part of a pixel inside the nested loop would look like this:
-				basePic->pixLines[hgh][pos-hgh*scanlineWidthInBytes]->blue;
-	
-			*/
-			for(DWORD pos{0},hgh{0};hgh<height;++hgh){	// we go through each scanline of the picture. a 1920x1080 Picture has 1920 scanlines
-				ScanLine& curLine = basePic->pixLines[hgh]; 
-				for(;pos!=scanlineWidthInBytes*(hgh+1)-scanlinePadding;pos+=3){
-					Pixel_24& curPixel = *curLine[pos-hgh*scanlineWidthInBytes];
+				/*
+				we loop through the bitmap
+				we copy each pixel of each scanline and skip any padding
 
-					curPixel.blue = getByte_8_Val(bitmapData+pos);
-					curPixel.green = getByte_8_Val(bitmapData+pos+1);
-					curPixel.red = getByte_8_Val(bitmapData+pos+2);
-           		}
-				pos += scanlinePadding;	//skip padding
+				we make a reference to increase readability
+				otherwise the statement for the blue part of a pixel inside the nested loop would look like this:
+					basePic->pixLines[hgh][pos-hgh*scanlineWidthInBytes]->blue;
+
+				*/
+				for (DWORD pos{ 0 }, hgh{ 0 }; hgh < height; ++hgh) {	// we go through each scanline of the picture. a 1920x1080 Picture has 1920 scanlines
+					ScanLine& curLine = basePic->pixLines[hgh];
+					for (; pos != scanlineWidthInBytes * (hgh + 1) - scanlinePadding; pos += 3) {
+						Pixel_24& curPixel = curLine[static_cast<unsigned long long>(pos - hgh * scanlineWidthInBytes)/3];
+						
+						curPixel.setRGB(
+							bitmapData[pos + 2],	//red
+							bitmapData[pos + 1],	//green
+							bitmapData[pos]		//blue
+						);
+					}
+					pos += scanlinePadding;	//skip padding
+				}
+
 			}
-
-
 			break;
-
 			case 1:
 			
 
@@ -349,9 +361,7 @@ BitmapInterface* Kozy::FileParsing::load_Picture_BMP(BitmapInterface* basePic, c
 			}
 
 				
-		basePic->res.width= width;
-		basePic->res.height= height;
-		basePic->setPictureOrientation(orientation);
+		
 
 		delete[] completeFile;
 		finishStream(ifStr);
@@ -392,7 +402,7 @@ const Picture* Kozy::FileParsing::save_Picture(const Picture* pic, const char* f
 			pic->enableState(Picture::State::Failed_Operation);
 		}
 		else if (f != Format("bmp")){
-			throw Invalid_Argument_obj((string(f) + " has not been implemented yet!").c_str(),
+			throw Invalid_Argument_obj((string(f) + " has not been implemented yet!").c_str(),	
 									   "The picture will be saved as a bmp file.");
 
 			pic->enableState(Picture::State::Failed_Operation);
@@ -405,7 +415,7 @@ const Picture* Kozy::FileParsing::save_Picture(const Picture* pic, const char* f
 	}
 	return pic;
 }
-
+#include <vector>
 const BitmapInterface* Kozy::FileParsing::save_Picture_BMP(const BitmapInterface* basePic, const char* fileName){
 	using namespace std;
 	//>>>>>>>> OVERWRITES EXISTING FILES!!! <<<<<<<<<< 
@@ -426,15 +436,19 @@ const BitmapInterface* Kozy::FileParsing::save_Picture_BMP(const BitmapInterface
 
 	//utility variables
 	const DWORD width = basePic->getRes().width;
-	const DWORD height = basePic->getRes().height;
-	const WORD scanlinePadding = 4 - (width*3)%4; // padding
-	const DWORD scanlineWidthInBytes = width*3 + scanlinePadding; //bytes per scanline + padding
+
+	const DWORD height = ((basePic->getOrientation())?0:0b1000'0000'0000'0000'0000'0000'0000'0000)+
+						  basePic->getRes().height;
+	const WORD scanlinePadding = ((4 - (width * 3) % 4) == 4) ?
+		0 :
+		(4 - (width * 3) % 4); // padding
+	const DWORD scanlineWidthInBytes = (width + scanlinePadding)*3; //bytes per scanline + padding, if there is any
 
 	/*
 	variables are ordered in the way they will be written to the stream
 	*/
 	//header
-	constexpr unsigned char signature[] = {'B','M'};
+	constexpr byte_8 signature[] = {'B','M'};
 
 	
 
@@ -444,7 +458,7 @@ const BitmapInterface* Kozy::FileParsing::save_Picture_BMP(const BitmapInterface
 							scanlineWidthInBytes*height; //bitmap data with optional padding
 
 	const DWORD reserved_1_And_2 = 0;
-	constexpr DWORD dataOffset = 64; //header + infoHeader
+	constexpr DWORD dataOffset = 54; //header + infoHeader
 
 	//infoHeader
 	constexpr DWORD infoHeaderSize = 40;
@@ -460,16 +474,106 @@ const BitmapInterface* Kozy::FileParsing::save_Picture_BMP(const BitmapInterface
 	constexpr DWORD colorsImportant =0;
 
 
+	Basic_DynamicArray arr(signature,2);
+
+	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
+	cout << "\nEND Bytes expected: 2 Bytes received: " << arr.getLength() << endl; //TEMP OUTPUT
+
+	arr.copyArray(castValueToDWORD_l_e(fileSize),4);
+	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
+	cout << "\nEND 6 " << arr.getLength() << endl;
+	//arr+=castValueToDWORD_l_e(reserved_1_And_2);
+	arr.copyArray(castValueToDWORD_l_e(reserved_1_And_2), 4);
+
+	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
+	cout << "\nEND 10 " << arr.getLength() << endl;
+
+	//arr+=castValueToDWORD_l_e(dataOffset);
+	arr.copyArray(castValueToDWORD_l_e(dataOffset), 4);
+	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
+	cout << "\nEND 14 " << arr.getLength() << endl;
+
+	//arr+=castValueToDWORD_l_e(infoHeaderSize);
+	arr.copyArray(castValueToDWORD_l_e(infoHeaderSize), 4);
+
+	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
+	cout << "\nEND 18 " << arr.getLength() << endl;
+	//arr+=castValueToDWORD_l_e(width);
+	arr.copyArray(castValueToDWORD_l_e(width), 4);
+
+	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
+	cout << "\nEND 22 " << arr.getLength() << endl;
+	//arr+=castValueToDWORD_l_e(height);
+	arr.copyArray(castValueToDWORD_l_e(height), 4);
+	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
+	cout << "\nEND 26 " << arr.getLength() << endl;
+	//arr+=castValueToWORD_l_e(planes);
+	arr.copyArray(castValueToWORD_l_e(planes), 2);
+
+	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
+	cout << "\nEND 28 " << arr.getLength() << endl;
+	//arr+=castValueToWORD_l_e(bitChannel);
+	arr.copyArray(castValueToWORD_l_e(bitChannel), 2);
+	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
+	cout << "\nEND 30 " << arr.getLength() << endl;
+	//arr+=castValueToDWORD_l_e(compressionType);
+	arr.copyArray(castValueToDWORD_l_e(compressionType), 4);
+	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
+	cout << "\nEND 34 " << arr.getLength() << endl;
+	//arr+=castValueToDWORD_l_e(imageSize);
+	arr.copyArray(castValueToDWORD_l_e(imageSize), 4);
+	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
+	cout << "\nEND 38 " << arr.getLength() << endl;
+	//arr+=castValueToDWORD_l_e(hoPelsPerMeter);
+	arr.copyArray(castValueToDWORD_l_e(hoPelsPerMeter), 4);
+	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
+	cout << "\nEND 42 " << arr.getLength() << endl;
+	//arr+=castValueToDWORD_l_e(vePelsPerMeter);
+	arr.copyArray(castValueToDWORD_l_e(vePelsPerMeter), 4);
+	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
+	cout << "\nEND 46 " << arr.getLength() << endl;
+	//arr+=castValueToDWORD_l_e(colorsUsed);
+	arr.copyArray(castValueToDWORD_l_e(colorsUsed), 4);
+
+	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
+	cout << "\nEND 50 " << arr.getLength() << endl;
+	//arr+=castValueToDWORD_l_e(colorsImportant);
+	arr.copyArray(castValueToDWORD_l_e(colorsImportant), 4);
+
+
+	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
+	cout << "\nEND 54 " << arr.getLength() << endl;
+
+	
+
+	for(unsigned long linePos(0);linePos!=height;++linePos){
+		std::cout << linePos << std::endl;
+		for(unsigned long pixelPos(0);pixelPos!=width;++pixelPos){
+			//arr<<static_cast<byte_8>((*basePic)[linePos][pixelPos].getBlue());
+			//arr<<static_cast<byte_8>((*basePic)[linePos][pixelPos].getGreen());
+			//arr<<static_cast<byte_8>((*basePic)[linePos][pixelPos].getRed());
+			std::cout << pixelPos << std::endl;
+
+			arr << byte_8(0);
+
+		}
+		for (unsigned pad(0); pad != scanlinePadding; ++pad)
+			arr<<byte_8(0);
+	}
+	
 	/*
 	we do not do checks, because we assume that the user used the delegator function save_picture. 
 	Otherwise, they have been warned in the header! 
 	If they use this function directly, they are responsible for error handling. 
 	Also they have been informed, that this function >>>>>> OVERWRITES EXISTING FILES!!! <<<<<<<<<< 
 	*/
-	ofstream ostr(fileName); 
+	ofstream ostr(fileName,ios_base::binary); 
+	for (const auto& e : arr) //for-range loop. These are amazing and can be used on custom container classes, if they are made correctly.
+	{
+		cout << static_cast<unsigned int>(e) << endl; //TEMP OUTPUT
+		ostr << static_cast<unsigned char>(e);
+	}
 
-	//ostr
-	//	<< 
 	return basePic;
 }
 
