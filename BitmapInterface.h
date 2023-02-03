@@ -18,8 +18,15 @@ BitmapInterface* save_Picture_BMP(BitmapInterface*, const char* fileName);
 }
 
 struct Resolution{
-	unsigned long width {0};	// 4 byte.
-	unsigned long height{0};	
+	Resolution(unsigned long w, unsigned long h) : width(w), height(h) 
+		{}
+	Resolution() : width(0), height(0) 
+		{}
+	Resolution(const Resolution& cpy) : width(cpy.width), height(cpy.height) // this constructor is implicitly created, but for completeness sake, I added it
+		{}
+
+	unsigned long width;	// 4 byte.
+	unsigned long height;	
 };
 
 
@@ -28,39 +35,101 @@ struct Pixel_24{
 	friend Kozy::BitmapInterface* Kozy::FileParsing::save_Picture_BMP(Kozy::BitmapInterface* pic, const char* fileName); // this function does the heavy in-depth construction of a new Bitmap/Picture
 
 	public:
-	unsigned getRed()const
+	Pixel_24(unsigned argRed, unsigned argGreen, unsigned argBlue) noexcept : red(argRed), green(argGreen), blue(argBlue)
+		{}
+	Pixel_24(const Pixel_24& cpy) noexcept : red(cpy.red), green(cpy.green), blue(cpy.blue) 
+		{}
+	Pixel_24() noexcept : red(0), green(0), blue(0) 
+		{}
+	/*
+	This is a primitive data structure, thus there is no real need to add a move constructor.
+	Pixel_24(Pixel_24&& mv) noexcept : red(mv.red), green(mv.green), blue(mv.blue) { 
+		mv.red = -1;
+		mv.green = -1;
+		mv.blue = -1;
+	}*/
+
+	unsigned getRed()const noexcept
 		{return red;}
-	unsigned getGreen()const
+	unsigned getGreen()const noexcept
 		{return green;}
-	unsigned getBlue()const
+	unsigned getBlue()const noexcept
 		{return blue;}
-	Pixel_24& setRed(unsigned value){
+	void getRGB(unsigned(&arr)[3])const noexcept {  // reference to a static array of 3 elements
+		/*
+		this is a really cool thing I learned from "Modern Effective C++"
+		Passing an array by reference does actually pass a reference of the array.
+
+		Whereas, passing an array by value does NOT pass a copy of the array. It would pass a copy of the first pointer, which has a slightly different meaning.
+
+		The code below would still be valid if we were to pass a pointer, but the meaning would be different and also the array could be of a different size, thus being less safe than the reference.
+
+		A reference parameter forces the passed object to be exactly the length declared in the parameter. For example this function does not allow the user to pass an array with not exactly 3 elements!
+		Another benefit is, that we can safely add the "noexcept" qualifier to this function. This can improve compiled code, thus performance.
+		*/
+		arr[0] = red;
+		arr[1] = green;
+		arr[2] = blue;
+	}
+
+	Pixel_24& setRed(unsigned value) noexcept {
 		red=value;
 		return *this;}
-	Pixel_24& setGreen(unsigned value){
+	Pixel_24& setGreen(unsigned value) noexcept {
 		green=value;
 		return *this;}
-	Pixel_24& setBlue(unsigned value){
+	Pixel_24& setBlue(unsigned value) noexcept {
 		blue=value;
 		return *this;}
-	Pixel_24& operator=(const Pixel_24& cpy)noexcept {
+	Pixel_24& setRGB(unsigned argRed, unsigned argGreen, unsigned argBlue)noexcept {
+		red = argRed;
+		green = argGreen;
+		blue = argBlue;
+
+		return *this;
+	}
+	Pixel_24& setRGB(const unsigned(&arr)[3]) noexcept{  // reference to a static array of 3 elements
+		red = arr[0];
+		green = arr[1];
+		blue = arr[2];
+
+		return *this;
+	}
+	Pixel_24& setRGB(const Pixel_24& cpy)noexcept {
 		red = cpy.red;
 		green = cpy.green;
 		blue = cpy.blue;
 
 		return *this;
 	}
+	Pixel_24& setRGB(unsigned value)noexcept {
+		red = green = blue = value;
+
+		return *this;
+	}
+	Pixel_24& operator=(const Pixel_24& cpy) noexcept 
+		{ return setRGB(cpy); }
+	Pixel_24& operator=(const unsigned(&arr)[3]) noexcept 
+		{  return setRGB(arr);}
+	Pixel_24& operator=(Pixel_24&& mv) noexcept {
+		red=mv.red;
+		green = mv.green;
+		blue = mv.blue;
+
+		mv.red = mv.green = mv.blue = -1; // same as = 255. 
+		return *this; 
+	}
+
+	/* 
+	the member fields are bit fields. These are not allowed to return pointers nor references!
+	We change the function to only return values, but that would break the meaning of the subscript operator.
+	*/
+	unsigned& operator[](unsigned pos) = delete; 
+
 	bool operator==(const Pixel_24& rhs)const noexcept 
 		{return red == rhs.red && green == rhs.green && blue == rhs.blue;}
 	bool operator!=(const Pixel_24& rhs)const noexcept 
 		{return *this==rhs;}
-
-	Pixel_24& setRGB(unsigned argRed, unsigned argGreen, unsigned argBlue){
-
-		red=argRed;
-		green = argGreen;
-		blue = argBlue;
-		return *this;}
 
 
 	private:
@@ -73,12 +142,16 @@ struct Pixel_24{
 struct ScanLine{
 	friend Kozy::BitmapInterface* Kozy::FileParsing::load_Picture_BMP(Kozy::BitmapInterface* pic, const char* fileName); // this function does the heavy in-depth construction of a new Bitmap/Picture
 	friend Kozy::BitmapInterface* Kozy::FileParsing::save_Picture_BMP(Kozy::BitmapInterface* pic, const char* fileName); // this function does the heavy in-depth construction of a new Bitmap/Picture
+	friend struct BitmapInterface;
 
     public:
 	ScanLine(unsigned lineWidth)noexcept;
+	ScanLine(unsigned lineWidth, unsigned value)noexcept;
+	ScanLine(unsigned lineWidth, const unsigned (&arr)[3])noexcept;
+
 	ScanLine(const ScanLine&, unsigned width);
 	ScanLine(ScanLine&&)noexcept;
-	ScanLine(ScanLine&)=delete; // ScanLine does not save its width, so it is not possible to copy the array correctly
+	ScanLine(const ScanLine&)=delete; // ScanLine does not save its width, so it is not possible to copy the array correctly
 	ScanLine()noexcept;
 		
 
@@ -91,7 +164,7 @@ struct ScanLine{
 	ScanLine& operator=(ScanLine&&)noexcept;
 	ScanLine& operator=(unsigned)=delete;
 
-	ScanLine& copy(const ScanLine&, unsigned width);
+	ScanLine& copy(const ScanLine&, unsigned long width);
 
 	bool operator==(const ScanLine&)=delete;
 	bool operator!=(const ScanLine&)=delete;
@@ -156,7 +229,7 @@ struct BitmapInterface{
 	false -- top-down
 	true -- bottom-up
 	*/
-	void setPictureOrientation(const bool&) noexcept;
+	void setPictureOrientation(bool) noexcept;
 
 	constexpr bool getOrientation() const noexcept 
 		{return orientation;}
@@ -173,7 +246,15 @@ struct BitmapInterface{
 
 
     protected:
-    BitmapInterface();
+	//Constructors are hidden for the user. They are supposed to use the Picture class
+    BitmapInterface()noexcept;
+	BitmapInterface(const Resolution&, unsigned value)noexcept;
+	BitmapInterface(const Resolution& r)noexcept : BitmapInterface(r, 0)
+		{}
+
+	BitmapInterface(const Resolution&, const unsigned (&arr)[3])noexcept;
+
+
 	Resolution res;
 	Bit_Channel bitChannel{Bit_Channel::Bit_24};	// right now, we only allow exactly 24 bits per pixel
 
@@ -181,7 +262,7 @@ struct BitmapInterface{
 	res.height == length of ScanLine Array
 	res.width  == length of pixels per Scanline 
 	*/
-	ScanLine* pixLines{nullptr}; 
+	ScanLine* pixLines; 
 
 	
 
@@ -189,7 +270,7 @@ struct BitmapInterface{
 	false -- top-down
 	true -- bottom-up
 	*/
-	bool orientation{true}; 
+	bool orientation{ true };
 };
 
 

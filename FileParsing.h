@@ -194,6 +194,8 @@ It does not allow the user to directly change the order of elements.
 Does not have a capacity-concept implemented yet. Many single item expansions are expensive
 */
 class Basic_DynamicArray{
+	friend const BitmapInterface* Kozy::FileParsing::save_Picture_BMP(const BitmapInterface* basePic, const char* fileName);
+
 	public:
 	Basic_DynamicArray()noexcept:data(nullptr),length(0)
 		{}
@@ -268,7 +270,7 @@ class Basic_DynamicArray{
 	Basic_DynamicArray operator+(const Basic_DynamicArray& val)
 		{return Basic_DynamicArray(*this)+=val;}	
 	Basic_DynamicArray operator+(const byte_8& val)
-		{return Basic_DynamicArray(*this).append(val);}	
+		{return Basic_DynamicArray(*this).append(val);}	//creates a copy and adds the new element to it. 
 	byte_8& operator[](size_t pos){
 		if(pos>=length){
 			throw Out_Of_Range_obj(
@@ -374,6 +376,9 @@ class Basic_DynamicArray{
 		for(size_t index(0);index!=length;++index) //I could have used something like copy_n from <algorithm>, but I try to use as little from the STL as possible for this project
 			newData[index]=data[index];
 		length+=len;
+
+		delete[] data;
+		data = newData;
 	}
 
 };
@@ -419,6 +424,7 @@ template<typename T>
 byte_8* castValueToDWORD_l_e(const T& val){
 	constexpr size_t maxOf32=0b1111'1111'1111'1111'1111'1111'1111'1111;
 	unsigned long Ival;
+
 	if(val>maxOf32){
 		throw Invalid_Argument_obj(
 			"You entered a value that is bigger than 2^16 and the value will be clipped!",

@@ -27,7 +27,6 @@ Picture* FileParsing::load_Picture(Picture* pic, const char* fileName){
 		);
 		pic->enableState(Picture::State::Failed_Loading);
 
-		return pic; 
 	} else {
 		if(getFormatByFileName(fileName)== Format("bmp")||getFormatByFileName(fileName)==Format("dib")){
 			try{
@@ -37,8 +36,7 @@ Picture* FileParsing::load_Picture(Picture* pic, const char* fileName){
 				pic->enableState(Picture::State::Failed_Loading);
 				
 			}
-
-			return pic;		
+		
 		}else{
 		pic->enableState(Picture::State::Failed_Loading);
 
@@ -46,9 +44,9 @@ Picture* FileParsing::load_Picture(Picture* pic, const char* fileName){
 			string(fileName) + " can not be loaded.").c_str(), 
 			"Unfortunately the format of the file is not known or has no conversion yet.");
 
-		return pic; 
 		}
 	}
+	return pic;
 }
 
 BitmapInterface* Kozy::FileParsing::load_Picture_BMP(BitmapInterface* basePic, const char* fileName){
@@ -176,7 +174,7 @@ BitmapInterface* Kozy::FileParsing::load_Picture_BMP(BitmapInterface* basePic, c
 
 	// Reading bitmap file into Picture
 	
-	ifstream ifStr(fileName, std::ios_base::binary); // we are not parsing text, we parse data. otherwise char that represeent escape sequences will lead to errors
+	ifstream ifStr(fileName, std::ios_base::binary); // we are not parsing text, we parse data. otherwise char that represent escape sequences like \n might lead to errors
 
 
 	constexpr unsigned BMP_HEADER_LENGTH_IN_BYTE = 14;
@@ -262,9 +260,9 @@ BitmapInterface* Kozy::FileParsing::load_Picture_BMP(BitmapInterface* basePic, c
 
 		basePic->res.width = static_cast<unsigned long>(width);
 		basePic->res.height = static_cast<unsigned long>(height);
-		basePic->setPictureOrientation(orientation);
+		basePic->setPictureOrientation(!orientation);
 
-		ifStr.open(fileName); //we read the file again and use the offset provided in the header. This is safer, because that is exactly what DataOffset is designed for.  
+		ifStr.open(fileName, std::ios_base::binary); //we read the file again and use the offset provided in the header. This is safer, because that is exactly what DataOffset is designed for.  
 		byte_8* completeFile = new byte_8[fileSize];
 	    ifStr.read(static_cast<char*>(static_cast<void*>(completeFile)),fileSize); 
 
@@ -293,7 +291,7 @@ BitmapInterface* Kozy::FileParsing::load_Picture_BMP(BitmapInterface* basePic, c
 					0: 
 					(4 - (width * 3) % 4); // padding
 				const DWORD scanlineWidthInBytes = (width + scanlinePadding) * 3; //bytes per scanline + padding, if there is any
-
+				
 
 				/*
 				we loop through the bitmap
@@ -308,12 +306,14 @@ BitmapInterface* Kozy::FileParsing::load_Picture_BMP(BitmapInterface* basePic, c
 					ScanLine& curLine = basePic->pixLines[hgh];
 					for (; pos != scanlineWidthInBytes * (hgh + 1) - scanlinePadding; pos += 3) {
 						Pixel_24& curPixel = curLine[static_cast<unsigned long long>(pos - hgh * scanlineWidthInBytes)/3];
-						
+
 						curPixel.setRGB(
 							bitmapData[pos + 2],	//red
 							bitmapData[pos + 1],	//green
 							bitmapData[pos]		//blue
 						);
+						//std::cout << bitmapData[pos + 2] << ' ' << curPixel.getRed() << std::endl;
+
 					}
 					pos += scanlinePadding;	//skip padding
 				}
@@ -359,8 +359,6 @@ BitmapInterface* Kozy::FileParsing::load_Picture_BMP(BitmapInterface* basePic, c
 				//Here could be code for 16 and 32 Bit channels that use Bitfield compression. 
 			break;
 			}
-
-				
 		
 
 		delete[] completeFile;
@@ -377,45 +375,53 @@ BitmapInterface* Kozy::FileParsing::load_Picture_BMP(BitmapInterface* basePic, c
 }
 
 const Picture* Kozy::FileParsing::save_Picture(const Picture* pic, const char* fileName){
-	return save_Picture(pic,fileName,pic->getFormat());
+	return save_Picture(pic, fileName, pic->getFormat());
+
 }
 const Picture* Kozy::FileParsing::save_Picture(const Picture* pic, const char* fileName, const Format& f){	
 	if (pic->doesStateContain(Picture::State::Fatal_Error)){
+		pic->enableState(Picture::State::Failed_Operation);
 		throw Exception_obj((string(fileName) + " is corrupt!\nIt can not be safely read.").c_str(),
 						"The file seems to be bad.\nTry a backup or use a different file.");
-		pic->enableState(Picture::State::Failed_Operation);
 	}else{
 		const string fileType=string(".")+ static_cast<const char *>(f); //example: ".bmp"
 		const string fullFileName = string(fileName) + fileType;	// example: "EXAMPLE.bmp"
 
-		if (fileExists(fullFileName.c_str())){
+		if (fileExists(fullFileName.c_str())) {
+			pic->enableState(Picture::State::Failed_Operation);
+			save_Picture(pic, (string(fileName) + "_new").c_str(), f);	// although in most cases I prefer to use loops instead of recursion or goto's, this is one of the rare cases, where I think recursion is the better approach
+
 			throw Invalid_Argument_obj((fullFileName + " does already exist!").c_str(),
 									   "\"_new\" will be added to the filename.");
-
-			pic->enableState(Picture::State::Failed_Operation);
-			return save_Picture(pic,(string(fileName)+"_new" + fileType).c_str(),f);	//although in most cases I prefer to use loops instead of recursion or goto's, this is one of the rare cases, where I think recursion is the better approach
 		}
 		if (f == BLANKFORMAT){
+			pic->enableState(Picture::State::Failed_Operation);
+			save_Picture(pic, fileName, Format("bmp"));
+
 			throw Invalid_Argument_obj((string(f) + " has no type!").c_str(),
 									   "The picture will be saved as a bmp file.\nNext time, please set a specific type for your picture.");
-
-			pic->enableState(Picture::State::Failed_Operation);
+			return pic;
 		}
-		else if (f != Format("bmp")){
-			throw Invalid_Argument_obj((string(f) + " has not been implemented yet!").c_str(),	
-									   "The picture will be saved as a bmp file.");
-
+		else if (f != Format("bmp")){ // right now only bmp is implemented
 			pic->enableState(Picture::State::Failed_Operation);
+			save_Picture(pic, fileName, Format("bmp")); 
+
+			throw Invalid_Argument_obj((string(f) + " has not been implemented yet!").c_str(),
+									   "The picture will be saved as a bmp file.");
 		}
 
 		if (pic->hasPictureData()){
-			
-			save_Picture_BMP(pic, fullFileName.c_str());
+			save_Picture_BMP(pic, (string(fileName)+".bmp").c_str());
+		}
+		else {
+			pic->enableState(Picture::State::Failed_Operation);
+			throw Exception_obj((string(fileName) + " is empty!\nThere is nothing to be saved!.").c_str(),
+								"");
 		}
 	}
 	return pic;
 }
-#include <vector>
+
 const BitmapInterface* Kozy::FileParsing::save_Picture_BMP(const BitmapInterface* basePic, const char* fileName){
 	using namespace std;
 	//>>>>>>>> OVERWRITES EXISTING FILES!!! <<<<<<<<<< 
@@ -437,8 +443,7 @@ const BitmapInterface* Kozy::FileParsing::save_Picture_BMP(const BitmapInterface
 	//utility variables
 	const DWORD width = basePic->getRes().width;
 
-	const DWORD height = ((basePic->getOrientation())?0:0b1000'0000'0000'0000'0000'0000'0000'0000)+
-						  basePic->getRes().height;
+	const DWORD height = basePic->getRes().height; 
 	const WORD scanlinePadding = ((4 - (width * 3) % 4) == 4) ?
 		0 :
 		(4 - (width * 3) % 4); // padding
@@ -455,7 +460,7 @@ const BitmapInterface* Kozy::FileParsing::save_Picture_BMP(const BitmapInterface
 	const DWORD fileSize=
 							14+		//header
 							40+ 	//infoHeader
-							scanlineWidthInBytes*height; //bitmap data with optional padding
+							scanlineWidthInBytes* height; //bitmap data with optional padding
 
 	const DWORD reserved_1_And_2 = 0;
 	constexpr DWORD dataOffset = 54; //header + infoHeader
@@ -475,92 +480,64 @@ const BitmapInterface* Kozy::FileParsing::save_Picture_BMP(const BitmapInterface
 
 
 	Basic_DynamicArray arr(signature,2);
-
-	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
-	cout << "\nEND Bytes expected: 2 Bytes received: " << arr.getLength() << endl; //TEMP OUTPUT
-
 	arr.copyArray(castValueToDWORD_l_e(fileSize),4);
-	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
-	cout << "\nEND 6 " << arr.getLength() << endl;
-	//arr+=castValueToDWORD_l_e(reserved_1_And_2);
 	arr.copyArray(castValueToDWORD_l_e(reserved_1_And_2), 4);
-
-	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
-	cout << "\nEND 10 " << arr.getLength() << endl;
-
-	//arr+=castValueToDWORD_l_e(dataOffset);
 	arr.copyArray(castValueToDWORD_l_e(dataOffset), 4);
-	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
-	cout << "\nEND 14 " << arr.getLength() << endl;
-
-	//arr+=castValueToDWORD_l_e(infoHeaderSize);
 	arr.copyArray(castValueToDWORD_l_e(infoHeaderSize), 4);
-
-	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
-	cout << "\nEND 18 " << arr.getLength() << endl;
-	//arr+=castValueToDWORD_l_e(width);
 	arr.copyArray(castValueToDWORD_l_e(width), 4);
-
-	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
-	cout << "\nEND 22 " << arr.getLength() << endl;
-	//arr+=castValueToDWORD_l_e(height);
-	arr.copyArray(castValueToDWORD_l_e(height), 4);
-	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
-	cout << "\nEND 26 " << arr.getLength() << endl;
-	//arr+=castValueToWORD_l_e(planes);
+	arr.copyArray(castValueToDWORD_l_e(height), 4); 
+	//arr.copyArray(castValueToDWORD_l_e((
+	//	(basePic->getOrientation()) ? 0 : 0b1000'0000'0000'0000'0000'0000'0000'0000) | basePic->getRes().height) // for some reason, although I changed the first bit to 1, thus flipping it, that picture can not be used correctly
+	//	, 4);
 	arr.copyArray(castValueToWORD_l_e(planes), 2);
-
-	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
-	cout << "\nEND 28 " << arr.getLength() << endl;
-	//arr+=castValueToWORD_l_e(bitChannel);
 	arr.copyArray(castValueToWORD_l_e(bitChannel), 2);
-	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
-	cout << "\nEND 30 " << arr.getLength() << endl;
-	//arr+=castValueToDWORD_l_e(compressionType);
 	arr.copyArray(castValueToDWORD_l_e(compressionType), 4);
-	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
-	cout << "\nEND 34 " << arr.getLength() << endl;
-	//arr+=castValueToDWORD_l_e(imageSize);
 	arr.copyArray(castValueToDWORD_l_e(imageSize), 4);
-	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
-	cout << "\nEND 38 " << arr.getLength() << endl;
-	//arr+=castValueToDWORD_l_e(hoPelsPerMeter);
 	arr.copyArray(castValueToDWORD_l_e(hoPelsPerMeter), 4);
-	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
-	cout << "\nEND 42 " << arr.getLength() << endl;
-	//arr+=castValueToDWORD_l_e(vePelsPerMeter);
 	arr.copyArray(castValueToDWORD_l_e(vePelsPerMeter), 4);
-	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
-	cout << "\nEND 46 " << arr.getLength() << endl;
-	//arr+=castValueToDWORD_l_e(colorsUsed);
 	arr.copyArray(castValueToDWORD_l_e(colorsUsed), 4);
-
-	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
-	cout << "\nEND 50 " << arr.getLength() << endl;
-	//arr+=castValueToDWORD_l_e(colorsImportant);
 	arr.copyArray(castValueToDWORD_l_e(colorsImportant), 4);
-
-
-	for (const auto& e : arr) cout << static_cast<unsigned>(e) << endl;
-	cout << "\nEND 54 " << arr.getLength() << endl;
-
 	
+	size_t arrIndex = arr.getLength()-1;
+	arr.expandArray(scanlineWidthInBytes * height);
 
-	for(unsigned long linePos(0);linePos!=height;++linePos){
-		std::cout << linePos << std::endl;
-		for(unsigned long pixelPos(0);pixelPos!=width;++pixelPos){
-			//arr<<static_cast<byte_8>((*basePic)[linePos][pixelPos].getBlue());
-			//arr<<static_cast<byte_8>((*basePic)[linePos][pixelPos].getGreen());
-			//arr<<static_cast<byte_8>((*basePic)[linePos][pixelPos].getRed());
-			std::cout << pixelPos << std::endl;
+	if (basePic->getOrientation()) { // temp. We need to manually flip the picture
+		for (unsigned long linePos(0); linePos != height; ++linePos) {
+			if (linePos % (unsigned long) (height * 0.1f) == 0) // height * 0.01f for single digit percentages
+				cout << linePos / (unsigned long) (height * 0.01f) << "% finished.\n";
+			for (unsigned long pixelPos(0); pixelPos != width; ++pixelPos) {
+				/*
+				arr<<static_cast<byte_8>((*basePic)[linePos][pixelPos].getBlue());
+				arr<<static_cast<byte_8>((*basePic)[linePos][pixelPos].getGreen());
+				arr<<static_cast<byte_8>((*basePic)[linePos][pixelPos].getRed());
 
-			arr << byte_8(0);
+				This is out-commented, for being very very costly! Good example for dynamic vs static kind of container
+				*/
 
+
+				arr.data[++arrIndex] = static_cast<byte_8>((*basePic)[linePos][pixelPos].getBlue()); 
+				arr.data[++arrIndex] = static_cast<byte_8>((*basePic)[linePos][pixelPos].getGreen()); 
+				arr.data[++arrIndex] = static_cast<byte_8>((*basePic)[linePos][pixelPos].getRed()); 
+			}
+			for (unsigned pad(0); pad != scanlinePadding; ++pad)
+				arr.data[++arrIndex] = byte_8(0);
+			//arr<<byte_8(0);
 		}
-		for (unsigned pad(0); pad != scanlinePadding; ++pad)
-			arr<<byte_8(0);
 	}
-	
+	else {
+		for (unsigned long linePos(height-1); linePos != -1; --linePos) {
+			if (linePos % (unsigned long) (height * 0.1f) == 0) // height * 0.01f for single digit percentages
+				cout << 100-(linePos / (unsigned long) (height * 0.01f)) << "% finished.\n";
+			for (unsigned long pixelPos(0); pixelPos != width; ++pixelPos) {
+
+				arr.data[++arrIndex] = static_cast<byte_8>((*basePic)[linePos][pixelPos].getBlue()); 
+				arr.data[++arrIndex] = static_cast<byte_8>((*basePic)[linePos][pixelPos].getGreen()); 
+				arr.data[++arrIndex] = static_cast<byte_8>((*basePic)[linePos][pixelPos].getRed()); 
+			}
+			for (unsigned pad(0); pad != scanlinePadding; ++pad)
+				arr.data[++arrIndex] = byte_8(0);
+		}
+	}
 	/*
 	we do not do checks, because we assume that the user used the delegator function save_picture. 
 	Otherwise, they have been warned in the header! 
@@ -569,10 +546,7 @@ const BitmapInterface* Kozy::FileParsing::save_Picture_BMP(const BitmapInterface
 	*/
 	ofstream ostr(fileName,ios_base::binary); 
 	for (const auto& e : arr) //for-range loop. These are amazing and can be used on custom container classes, if they are made correctly.
-	{
-		cout << static_cast<unsigned int>(e) << endl; //TEMP OUTPUT
 		ostr << static_cast<unsigned char>(e);
-	}
 
 	return basePic;
 }

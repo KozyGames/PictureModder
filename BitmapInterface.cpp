@@ -6,12 +6,26 @@
 using namespace Kozy;
 
 
-ScanLine::ScanLine(unsigned lineWidth)noexcept{
-	sLine = new Pixel_24[lineWidth];
+ScanLine::ScanLine(unsigned lineWidth)noexcept: 
+sLine(new Pixel_24[lineWidth]){
+	
 }
+ScanLine::ScanLine(unsigned lineWidth, unsigned value)noexcept:
+sLine(new Pixel_24[lineWidth]) {
 
+    // there is a c-function that creates a memory block with an initialization value, but I do not remember the name right now and also this is possibly easier to read
+    for (unsigned long index = 0; index != lineWidth; ++index)
+        sLine[index].setRGB(value);
+}
+ScanLine::ScanLine(unsigned lineWidth, const unsigned(&arr)[3])noexcept:
+sLine(new Pixel_24[lineWidth]) {
+   
+    for (unsigned long index = 0; index != lineWidth; ++index)
+        sLine[index].setRGB(arr);
+}
 ScanLine::ScanLine(const ScanLine& cpy, unsigned width)
 :sLine(new Pixel_24[width]){
+
     for(unsigned index=0; index!=width;++index)
         sLine[index] = cpy.sLine[index];
 }
@@ -33,17 +47,18 @@ const Pixel_24& ScanLine::operator[](unsigned long long index)const{
     return sLine[index];
 }
 ScanLine& ScanLine::operator=(ScanLine&& mv)noexcept{
-    delete[] sLine;
+    if(sLine!=nullptr)
+        delete[] sLine;
     sLine=mv.sLine;
 
     mv.sLine=nullptr;
 
     return *this;
 }
-ScanLine& ScanLine::copy(const ScanLine& cpy, unsigned width){
+ScanLine& ScanLine::copy(const ScanLine& cpy, unsigned long width){
     delete[] sLine;
     sLine=new Pixel_24[width];
-    for (unsigned index = 0; index != width; ++index)
+    for (unsigned long index = 0; index != width; ++index)
         sLine[index] = cpy.sLine[index];
 
     return *this;
@@ -57,9 +72,30 @@ bool ScanLine::compare(const ScanLine& rhs, unsigned width)const noexcept{
     }
     return true;
 }
-BitmapInterface::BitmapInterface(){
+
+
+//BitmapInterface
+
+BitmapInterface::BitmapInterface()noexcept : res(0,0), pixLines(nullptr){
 
 }
+BitmapInterface::BitmapInterface(const Resolution& r, unsigned value)noexcept: 
+    res(r),
+    pixLines(new ScanLine[r.height]){
+
+    const ScanLine pL(r.width, value);
+    for (unsigned long line(0); line != r.height; ++line)
+        pixLines[line].copy(pL, r.width);
+}
+BitmapInterface::BitmapInterface(const Resolution& r,const unsigned (&arr)[3])noexcept: 
+    res(r),
+    pixLines(new ScanLine[r.height]) {
+
+    const ScanLine pL(r.width, arr);
+    for (unsigned long line(0); line != r.height; ++line)
+        pixLines[line].copy(pL, r.width);
+}
+
 
 BitmapInterface& BitmapInterface::operator=(const BitmapInterface& cpy){
     orientation=cpy.orientation;
@@ -161,6 +197,7 @@ bool BitmapInterface::exactlySame(const BitmapInterface& rhs)const{
 }
 
 
-void BitmapInterface::setPictureOrientation(const bool& b)noexcept {
-    orientation=!b;
+void BitmapInterface::setPictureOrientation(bool b)noexcept {
+    orientation = b;
+
 }

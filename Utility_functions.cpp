@@ -13,7 +13,7 @@ const SystemManager systemM = initialize();
 
 bool Kozy::Utility::fileExists(const char* fileName)noexcept {
 	std::ifstream ifStr(fileName);
-	if(ifStr.is_open()){
+	if(ifStr.is_open()){	// there is a file with the name fileName
 		finishStream(ifStr);
 		return true;
 	}

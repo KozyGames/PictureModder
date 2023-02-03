@@ -15,11 +15,12 @@ Picture::Picture()noexcept: BitmapInterface(), format(BLANKFORMAT) {
 Picture::Picture(const char* fileName): BitmapInterface(), format(getFormatByFileName(fileName)) {
     setState(State::Good); 
 
-   FileParsing::load_Picture_BMP(this,fileName);
+   FileParsing::load_Picture(this,fileName);
 }
 
 Picture::Picture(const Picture& cpy){
-    if(!doesStateContain(State::Fatal_Error)&&!cpy.doesStateContainAny(State::Failed_Loading_AND_Fatal_Error)){
+    setState(State::Good);
+    if(!cpy.doesStateContainAny(State::Fatal_Error)){
         BitmapInterface::operator=(cpy);
         extraCheckForIsValid=cpy.extraCheckForIsValid;
         state=cpy.state;
@@ -46,7 +47,8 @@ As far as I can tell, a noexcept function is allowed to throw. But any not caugh
 Unfortunately, msvc gives a warning and I am very much against disabling warnings. In future c++ revisions or msvc updates this might change. 
 */
 Picture::Picture(Picture&& mv)noexcept {
-     if(!doesStateContain(State::Fatal_Error)&&!mv.doesStateContainAny(State::Failed_Loading_AND_Fatal_Error)){
+    setState(State::Good);
+     if(!mv.doesStateContainAny(State::Failed_Loading_AND_Fatal_Error)){
         BitmapInterface::operator=(std::move(mv));
         extraCheckForIsValid=mv.extraCheckForIsValid;
         state=mv.state;

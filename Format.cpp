@@ -26,7 +26,8 @@ const Format Kozy::getFormatByFileName(const char* fileName){
 		return Format(BLANKFORMAT);
 	}
 
-	return Format(++iter);	//iter should be the name of the data type of the file. a pointer to a char can be converted to a c-string and std::string, if it ends with the nul symbol \0
+	return Format(++iter);	// iter should be the name of the data type of the file. a pointer to a char can be converted to a c-string and std::string, if it ends with the nul symbol \0
+							// It is okay to pass a c-style pointer. Format constructor copies the c-string.
 }
 
 
